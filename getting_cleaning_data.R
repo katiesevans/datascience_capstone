@@ -35,7 +35,7 @@ tokenize <- function(file) {
     
     #remove profanity
     profanity=c(t(read.csv(text = getURL("http://www.bannedwordlist.com/lists/swearWords.csv"),header=F)))
-    clean <- gsub(paste(profanity, collapse = "|"), "", step1, perl = TRUE)
+    clean <- gsub(paste(profanity, collapse = "|"), "", step1, perl = TRUE, ignore.case = TRUE)
     
     #tokenize the text (split by spaces)
     tokens <- stringr::str_split(step1, " ")
