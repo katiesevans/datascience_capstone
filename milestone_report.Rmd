@@ -1,0 +1,95 @@
+---
+title: "Milestone Report"
+author: "Katie Evans"
+date: "2/18/2018"
+output: html_document
+---
+
+# Exploratory Data Analysis
+First, read in the three data files and explore the texts. (Add more info about where the data comes from)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(caret)
+library(DT)
+library(RCurl)
+
+#read in files
+twitter <- read_lines("~/Downloads/final/en_US/en_US.twitter.txt")
+news <- read_lines("~/Downloads/final/en_US/en_US.news.txt")
+blogs <- read_lines("~/Downloads/final/en_US/en_US.blogs.txt")
+
+#function to take a subset of text to analyze
+subset_text <- function(file, p) {
+    set.seed(9572)
+    indx <- sample(c(TRUE,FALSE), length(file), TRUE, prob = c(p, 1-p))
+    return(file[indx])
+}
+
+#function that takes a file as an input and returns a tokenized version of it:
+##### SHOULD MAKE FASTER ########
+tokenize <- function(file) {
+    #remove punctuation
+    rm_punct <- gsub("(?!')[[:punct:]]", "", file, perl=TRUE)
+    
+    #convert to all lowercase
+    lower <- tolower(rm_punct)
+    
+    #remove profanity
+    profanity=c(t(read.csv(text = getURL("http://www.bannedwordlist.com/lists/swearWords.csv"),
+                           header=F)))
+    clean <- gsub(paste(profanity, collapse = "|"), "", lower, perl = TRUE, ignore.case = TRUE)
+    
+    #tokenize the text (split by spaces)
+    tokens <- stringr::str_split(clean, " ")
+    
+    #return the token list
+    return(tokens)
+ 
+}
+
+#show basic summary for each file
+df <- data.frame(file = c("twitter", "blogs", "news"),
+           size_mb = c(object.size(twitter)[1] / 1e6, object.size(blogs)[1] / 1e6,
+                    object.size(news)[1] / 1e6),
+           line_count = c(length(twitter), length(blogs), length(news)),
+           word_count = c(sum(sapply(stringr::str_split(twitter, " "), length)),
+                        sum(sapply(stringr::str_split(blogs, " "), length)),
+                        sum(sapply(stringr::str_split(news, " "), length)))) %>%
+    dplyr::mutate(avg_word_line = word_count / line_count)
+
+datatable(df)
+
+```
+
+Begin to explore the text. Since the data sets are so large, lets start with 5% of each file and combine them to see what the most common words and phrases are.
+
+```{r}
+
+#choose random 5% from each text file and combine them to one tokenized training file
+twitter_sample <- subset_text(twitter, 0.05)
+blogs_sample <- subset_text(blogs, 0.05)
+news_sample <- subset_text(news, 0.05)
+all_text <- c(twitter_sample, blogs_sample, news_sample)
+token <- tokenize(all_text)
+
+#Plot the most popular words
+allwords <- unlist(token)
+topwords <- as.data.frame(sort(table(allwords), decreasing = T)[1:30])
+ggplot(data = topwords) +
+    geom_bar(aes(x = allwords, y = Freq), stat = "identity") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90)) +
+    labs(x = "Top words", y = "Frequency")
+
+```
+
+From this subset of the data, it looks like "the", "to", and "and" are the most popular words. That makes sense because they are used very commonly as linkers in text. Lets now look at the most common 2 and 3 word phrases.
+
+``` {r}
+
+#Plot the most popular 2-grams
+
+
+```

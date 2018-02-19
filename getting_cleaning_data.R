@@ -1,9 +1,13 @@
 #Read in the dataset
-setwd("~/Dropbox/AndersenLab/LabFolders/Katie/projects/miscellaneous/datascience_capstone/")
+# setwd("~/Dropbox/AndersenLab/LabFolders/Katie/projects/miscellaneous/datascience_capstone/")
+setwd("~/Documents/Work/coursera/datascience_capstone/")
 library(tidyverse)
 library(caret)
 library(RCurl)
 twitter <- read_lines("~/Downloads/final/en_US/en_US.twitter.txt")
+
+twitter_train <- read_lines("twitter_train.txt")
+
 
 #create a subsample
 set.seed(9572)
@@ -38,8 +42,6 @@ tokenize <- function(file) {
     clean <- gsub(paste(profanity, collapse = "|"), "", step1, perl = TRUE, ignore.case = TRUE)
     
     #tokenize the text (split by spaces)
-    tokens <- stringr::str_split(step1, " ")
-    
-    #remove profanity
-    token_clean <- 
+    tokens <- stringr::str_split(clean, " ")
+ 
 }
