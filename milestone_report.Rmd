@@ -5,8 +5,11 @@ date: "2/18/2018"
 output: html_document
 ---
 
-# Exploratory Data Analysis
-First, read in the three data files and explore the texts. (Add more info about where the data comes from)
+#Executive Summary
+In this report, I look at the file and word structure of three combined text files for the Datascience Coursera Capstone Project. For this project, I will use only the English files compiled from twitter, blogs, and news sources. I will investiage the most common words and phrases in the text both with and without common linker words such as 'the', 'of', 'and', etc. I will finally provide an introduction to how I plan to use a model to predict the next word.
+
+###Exploratory Data Analysis
+First, read in the three data files and explore the texts. The files are each quite large. 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -14,7 +17,7 @@ library(tidyverse)
 library(DT)
 library(RCurl)
 library(tm)
-library(RWeka)
+library(quanteda)
 
 #read in files
 twitter <- read_lines("~/Downloads/final/en_US/en_US.twitter.txt")
@@ -64,7 +67,9 @@ datatable(df)
 
 ```
 
-Begin to explore the text. Since the data sets are so large, lets start with 1% of each file and combine them to see what the most common words and phrases are.
+Here I begin to explore the text. Since the data sets are so large, lets start with 1% of each file and combine them to see what the most common words and phrases are. To do this, I will use a combination of the package `tm` and `quanteda` which I found to be much faster on my machine for tokenizing words and phrases (Ngrams).
+
+
 
 ```{r}
 
@@ -75,61 +80,168 @@ news_sample <- subset_text(news, 0.01)
 all_text <- c(twitter_sample, blogs_sample, news_sample)
 token <- Corpus(VectorSource(all_text))
 
+```
+
+I noticed that there are many non-english characters in my text files. They will make the model prediction much harder, so lets remove them in addition to punctuation, numbers, profanity, and white spaces. I also transformed all words to lowercase to make it easier to compare across samples.
+
+```{r}
+#look at all the unique characters to see what needs to be removed
+uniqchars <- unique(strsplit(paste(all_text, sep = " ", collapse = " "), "")[[1]])
+print(uniqchars)
+
 #Clean up the text
 profanity=c(t(read.csv(text = getURL("http://www.bannedwordlist.com/lists/swearWords.csv"), header=F)))
+#do not remove small filler words
 clean <- token %>%
     tm_map(content_transformer(tolower)) %>% #convert everything to lower
-    tm_map(removeWords, stopwords("english"))  %>% #remove small filler words like 'the', 'an', 'a', etc. ##Should I remove these??###
     tm_map(removeWords, profanity) %>% #remove profanity
-    tm_map(removePunctuation, preserve_intra_word_contractions = TRUE,
-                preserve_intra_word_dashes = TRUE)  %>% #remove punctuation
+    tm_map(removePunctuation)  %>% #remove punctuation
+    tm_map(removeNumbers) %>% #remove numbers
     tm_map(stripWhitespace) #strip white space
 
-#create document term matrix, and add up most frequent terms (split into 4 pieces because it takes forever)
-dtm <- DocumentTermMatrix(clean)
+#check the unique characters now
+dat <- sapply(clean, function(row) iconv(row, "latin1", "ASCII", sub=""))
+
+unique(strsplit(paste(dat, sep = " ", collapse = " "), "")[[1]])
+cleaned <- Corpus(VectorSource(dat))
 
 ```
 
-Lets plot the most common words (unigrams)
+Now that we have a clean, tokenized dataset, lets plot the most common words (unigrams).
 
 ```{r}
 
 #N-gram tokenizer
-unigrams <- DocumentTermMatrix(clean, control = list(tokenize = NGramTokenizer(Weka_control(min = 1, max = 1))))
-unigrams_frequency <- colSums(as.matrix(unigrams))
-unigrams_freq_df <- data.frame(word = names(unigrams_frequency), frequency = unigrams_frequency) %>%
+corp <- corpus(cleaned)
+tok <- tokens(corp)
+unigram <- tokens_ngrams(tok, n = 1)
+
+#create document-feature matrix
+uni <- colSums(dfm(unigram))
+uni_df <- data.frame(word = names(uni), frequency = uni) %>%
     dplyr::mutate(word = factor(word)) %>%
     dplyr::arrange(desc(frequency))
 
 #Plot the most popular words
-ggplot(data = unigrams_freq_df[1:30,]) +
-    geom_bar(aes(x = factor(word, levels = unique(unigrams_freq_df$word), ordered = T), y = frequency), stat = "identity") +
+ggplot(data = uni_df[1:30,]) +
+    geom_bar(aes(x = factor(word, levels = unique(uni_df$word), ordered = T), y = frequency), stat = "identity") +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 90)) +
     labs(x = "Top words", y = "Frequency")
 
 ```
 
-From this subset of the data, it looks like "the", "to", and "and" are the most popular words. That makes sense because they are used very commonly as linkers in text. Lets now look at the most common 2 and 3 word phrases.
+From this subset of the data, it looks like "the", "to", and "a" are the most popular words. That makes sense because they are used very commonly as linkers in text. Lets now look at the most common 2 and 3 word phrases.
 
 ``` {r}
 
-#N-gram tokenizer
-BigramTokenizer <- function(x) {
-    unlist(lapply(ngrams(words(x), 2), paste, collapse = " "), use.names = FALSE)
-}
+#create most common bigrams
+bigram <- tokens_ngrams(tok, n = 2)
 
-bigrams <- DocumentTermMatrix(clean, control = list(tokenize = BigramTokenizer))
-bigrams_frequency <- colSums(as.matrix(bigrams))
-bigrams_freq_df <- data.frame(word = names(bigrams_frequency), frequency = bigrams_frequency) %>%
+#create document-feature matrix
+bi <- colSums(dfm(bigram))
+bi_df <- data.frame(word = names(bi), frequency = bi) %>%
     dplyr::mutate(word = factor(word)) %>%
     dplyr::arrange(desc(frequency))
 
 #Plot the most popular words
-ggplot(data = bigrams_freq_df[1:30,]) +
-    geom_bar(aes(x = factor(word, levels = unique(bigrams_freq_df$word), ordered = T), y = frequency), stat = "identity") +
+ggplot(data = bi_df[1:30,]) +
+    geom_bar(aes(x = factor(word, levels = unique(bi_df$word), ordered = T), y = frequency), stat = "identity") +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 90)) +
     labs(x = "Top Bigrams", y = "Frequency")
 
+#create most common trigrams
+trigram <- tokens_ngrams(tok, n = 3)
+
+#create document-feature matrix
+tri <- colSums(dfm(trigram))
+tri_df <- data.frame(word = names(tri), frequency = tri) %>%
+    dplyr::mutate(word = factor(word)) %>%
+    dplyr::arrange(desc(frequency))
+
+#Plot the most popular words
+ggplot(data = tri_df[1:30,]) +
+    geom_bar(aes(x = factor(word, levels = unique(tri_df$word), ordered = T), y = frequency), stat = "identity") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90)) +
+    labs(x = "Top Trigrams", y = "Frequency")
+
 ```
+
+From the above plots, it looks like "of the" and "in the" are the two most popular bigrams by far. The most popular trigrams are "one of the", "a lot of", and "thanks for the". While these are the most popular Ngrams, it is not particularly interesting as most of the words that make up these phrases are small fillers (aka "the"). Next, lets try to remove these words and do the same analyses.
+
+```{r, echo = FALSE}
+
+#try the previous analysis but with removing stop words (the, and, an, but, i etc...)
+
+#remove small filler words
+clean <- token %>%
+    tm_map(content_transformer(tolower)) %>% #convert everything to lower
+    tm_map(removeWords, stopwords("english"))  %>% #remove small filler words like 'the', 'an', 'a', etc.
+    tm_map(removeWords, profanity) %>% #remove profanity
+    tm_map(removePunctuation)  %>% #remove punctuation
+    tm_map(removeNumbers) %>% #remove numbers
+    tm_map(stripWhitespace) #strip white space
+
+dat <- sapply(clean, function(row) iconv(row, "latin1", "ASCII", sub=""))
+cleaned <- Corpus(VectorSource(dat))
+
+corp <- corpus(cleaned)
+tok <- tokens(corp)
+unigram <- tokens_ngrams(tok, n = 1)
+
+#create document-feature matrix
+uni <- colSums(dfm(unigram))
+uni_df <- data.frame(word = names(uni), frequency = uni) %>%
+    dplyr::mutate(word = factor(word)) %>%
+    dplyr::arrange(desc(frequency))
+
+#Plot the most popular words
+ggplot(data = uni_df[1:30,]) +
+    geom_bar(aes(x = factor(word, levels = unique(uni_df$word), ordered = T), y = frequency), stat = "identity") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90)) +
+    labs(x = "Top words (Filtered)", y = "Frequency")
+
+#create most common bigrams
+bigram <- tokens_ngrams(tok, n = 2)
+
+#create document-feature matrix
+bi <- colSums(dfm(bigram))
+bi_df <- data.frame(word = names(bi), frequency = bi) %>%
+    dplyr::mutate(word = factor(word)) %>%
+    dplyr::arrange(desc(frequency))
+
+#Plot the most popular words
+ggplot(data = bi_df[1:30,]) +
+    geom_bar(aes(x = factor(word, levels = unique(bi_df$word), ordered = T), y = frequency), stat = "identity") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90)) +
+    labs(x = "Top Bigrams (Filtered)", y = "Frequency")
+
+#create most common trigrams
+trigram <- tokens_ngrams(tok, n = 3)
+
+#create document-feature matrix
+tri <- colSums(dfm(trigram))
+tri_df <- data.frame(word = names(tri), frequency = tri) %>%
+    dplyr::mutate(word = factor(word)) %>%
+    dplyr::arrange(desc(frequency))
+
+#Plot the most popular words
+ggplot(data = tri_df[1:30,]) +
+    geom_bar(aes(x = factor(word, levels = unique(tri_df$word), ordered = T), y = frequency), stat = "identity") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 90)) +
+    labs(x = "Top Trigrams (Filtered)", y = "Frequency")
+
+
+```
+
+With this new analysis, we find "said", "just" and "one" are the most popular words, "right now", "last year", and "last night" are the most popular 2-word phrases, and "happy mothers day", "let us know" and "new york city" are the most popular 2-word phrases. This different analysis gives us more insight into the text we will be working with, but fails to include popular linkers like "the" or "and".
+
+### Goals for Shiny App
+The application will have an input box where the user will input a string of text. I will create a model that will predict the next words based on the frequency of the words being found together in my training dataset using a similar n-gram technique.
+
+
