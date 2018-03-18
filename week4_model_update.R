@@ -116,8 +116,11 @@ ngram_lookup <- function(text, ngram_df) {
     model_df <- ngram_df %>%
         dplyr::mutate(features = as.character(features)) %>%
         dplyr::filter(., grepl(paste0("^", text, "_"), features)) %>%
-        dplyr::mutate(nextword = str_split_fixed(features, paste0(text, "_"), 2)[,2])
-    return(model_df$nextword)
+        dplyr::mutate(total = sum(freq)) %>%
+        dplyr::mutate(prob = freq / total) %>%
+        dplyr::mutate(nextword = str_split_fixed(features, paste0(text, "_"), 2)[,2]) %>%
+        dplyr::select(nextword, prob)
+    return(model_df)
 }
 
 # Function to look up highly associated words with non-stop word keywords in a phrase
@@ -142,32 +145,39 @@ ngram_predict <- function(input_text, sw = FALSE, num = 5) {
     #Tokenize input text
     input_tokens <- clean_text(input_text, stem = FALSE, stopwords = FALSE)[[1]]
     
-    #Find keywords (remove stop words)
-    keywords <- clean_text(input_text, stem = FALSE, stopwords = TRUE)[[1]]
-    input_tokens <- keywords
     #Find the last three words of the sentence and predict next word using fourgram
     #Return five most likely next words, if not 5 results, go to tri gram etc.
     #If nothing else works, return five most likely unigrams.
     if(length(input_tokens) > 2) {
         text <- input_tokens[(length(input_tokens) - 2):length(input_tokens)]
-        words <- ngram_lookup(paste(text, collapse = "_"), top4_1)
-        if(length(words) < 6) {
+        words <- ngram_lookup(paste(text, collapse = "_"), top4)
+        if(nrow(words) <= num) {
             text <- text[-1]
-            words <- unique(c(words, ngram_lookup(paste(text, collapse = "_"), top3_1)))
-            if(length(words) < 6) {
+            words <- rbind(words, ngram_lookup(paste(text, collapse = "_"), top3)) %>%
+                dplyr::arrange(desc(prob)) %>%
+                dplyr::distinct(nextword, .keep_all = T)
+            if(nrow(words) <= num) {
                 text <- text[-1]
-                words <- unique(c(words, ngram_lookup(paste(text, collapse = "_"), top2_1)))
-                if(length(words) < 6) {
-                    words <- unique(c(words, top1_1$word[1:5]))
+                words <- rbind(words, ngram_lookup(paste(text, collapse = "_"), top2)) %>%
+                    dplyr::arrange(desc(prob)) %>%
+                    dplyr::distinct(nextword, .keep_all = T)
+                if(nrow(words) <=num) {
+                    top1freq <- top1 %>%
+                        dplyr::mutate(total = sum(freq),
+                                      prob = freq / total)
+                    words <- rbind(words, top1freq) %>%
+                        dplyr::arrange(desc(prob)) %>%
+                        dplyr::distinct(nextword, .keep_all = T)
                 }
             }
         }
     }
     if(sw == TRUE) {
-        pred <- words[!words %in% stopwords]
-        prediction <- pred[1:num]
+        pred <- words %>%
+            dplyr::filter(!grepl(paste(testwords, collapse = "|"), nextword))
+        prediction <- pred$nextword[1:num]
     } else {
-        prediction <- words[1:num]
+        prediction <- words$nextword[1:num]
     }
     return(prediction)
 }
@@ -182,4 +192,4 @@ Q7 <- "I can't deal with unsymetrical things. I can't even hold an uneven number
 Q8 <- "Every inch of you is perfect from the bottom to the"
 Q9 <- "I’m thankful my childhood was filled with imagination and bruises from playing"
 Q10 <- "I like how the same people are in almost all of Adam Sandler's"
-ngram_predict(Q7, num = 30, sw = TRUE)
+ngram_predict(Q1, num = 40, sw = TRUE)
