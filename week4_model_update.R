@@ -2,6 +2,8 @@ library(text2vec)
 library(tidyverse)
 library(quanteda)
 
+start <- Sys.time()
+
 #read in files
 twitter <- read_lines("~/Downloads/final/en_US/en_US.twitter.txt")
 news <- read_lines("~/Downloads/final/en_US/en_US.news.txt")
@@ -15,11 +17,11 @@ subset_text <- function(file, p) {
 }
 
 #choose random 1% from each text file and combine them to one tokenized training file
-twitter_sample <- subset_text(twitter, 0.5)
-blogs_sample <- subset_text(blogs, 0.5)
-news_sample <- subset_text(news, 0.5)
-all_text <- c(twitter_sample, blogs_sample, news_sample)
-index <- sample(c(TRUE, FALSE), length(all_text), TRUE, prob = c(0.6, 0.4))
+# twitter_sample <- subset_text(twitter, 0.5)
+# blogs_sample <- subset_text(blogs, 0.5)
+# news_sample <- subset_text(news, 0.5)
+all_text <- c(twitter, blogs, news)
+index <- sample(c(TRUE, FALSE), length(all_text), TRUE, prob = c(0.7, 0.3))
 train <- all_text[index]
 test <- all_text[index == FALSE]
 
@@ -119,7 +121,8 @@ ngram_lookup <- function(text, ngram_df) {
         dplyr::mutate(total = sum(freq)) %>%
         dplyr::mutate(prob = freq / total) %>%
         dplyr::mutate(nextword = str_split_fixed(features, paste0(text, "_"), 2)[,2]) %>%
-        dplyr::select(nextword, prob)
+        dplyr::select(nextword, prob) %>%
+        dplyr::filter(!nextword %in% stopwords)
     return(model_df)
 }
 
@@ -140,8 +143,12 @@ keyword_lookup <- function(text) {
     return(unique(phrase_df$feature))
 }
 
+keyword_lookup <- function(input_text) {
+    
+}
+
 # function to predict the next word given a string of text
-ngram_predict <- function(input_text, sw = FALSE, num = 5) {
+ngram_predict <- function(input_text, num = 5) {
     #Tokenize input text
     input_tokens <- clean_text(input_text, stem = FALSE, stopwords = FALSE)[[1]]
     
@@ -164,7 +171,9 @@ ngram_predict <- function(input_text, sw = FALSE, num = 5) {
                 if(nrow(words) <=num) {
                     top1freq <- top1 %>%
                         dplyr::mutate(total = sum(freq),
-                                      prob = freq / total)
+                                      prob = freq / total,
+                                      nextword = as.character(features)) %>%
+                        dplyr::select(nextword, prob)
                     words <- rbind(words, top1freq) %>%
                         dplyr::arrange(desc(prob)) %>%
                         dplyr::distinct(nextword, .keep_all = T)
@@ -172,14 +181,7 @@ ngram_predict <- function(input_text, sw = FALSE, num = 5) {
             }
         }
     }
-    if(sw == TRUE) {
-        pred <- words %>%
-            dplyr::filter(!grepl(paste(testwords, collapse = "|"), nextword))
-        prediction <- pred$nextword[1:num]
-    } else {
-        prediction <- words$nextword[1:num]
-    }
-    return(prediction)
+    return(words$nextword[1:num])
 }
 
 Q1 <- "When you breathe, I want to be the air for you. I'll be there for you, I'd live and I'd"
@@ -192,4 +194,7 @@ Q7 <- "I can't deal with unsymetrical things. I can't even hold an uneven number
 Q8 <- "Every inch of you is perfect from the bottom to the"
 Q9 <- "I’m thankful my childhood was filled with imagination and bruises from playing"
 Q10 <- "I like how the same people are in almost all of Adam Sandler's"
-ngram_predict(Q1, num = 40, sw = TRUE)
+
+stop <- Sys.time()
+
+ngram_predict(Q10, num = 10)
