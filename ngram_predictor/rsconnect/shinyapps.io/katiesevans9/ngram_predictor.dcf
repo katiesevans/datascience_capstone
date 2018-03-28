@@ -1,0 +1,12 @@
+name: ngram_predictor
+title: ngram_predictor
+username:
+account: katiesevans9
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 309973
+bundleId: 1291285
+url: https://katiesevans9.shinyapps.io/ngram_predictor/
+when: 1522203905.45477
+asMultiple: FALSE
+asStatic: FALSE

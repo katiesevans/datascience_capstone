@@ -5,7 +5,7 @@ library(quanteda)
 library(RCurl)
 library(tm)
 
-load("~/Documents/Work/coursera/datascience_capstone2/vocab_dataframes.Rdata")
+load("vocab_dataframes.Rdata")
 
 #Clean up the text
 clean_text <- function(text_input, stopwords = TRUE, stem = FALSE) {
@@ -163,37 +163,11 @@ shinyServer(function(input, output) {
   
   # Predict next word and print
   observeEvent(input$go, {
-      words <- ngram_predict(input$input, num = input$numwords)
+      newinput <- input$input
+      words <- ngram_predict(newinput, num = input$numwords)
       output$model_output <- renderUI(tags$div(tags$ul(
           lapply(1:length(words), function(x) tags$li(renderText(words[x])))
           )))
   })
   
-  obsList <- list()
-  observeEvent(input$go, {
-      words <- ngram_predict(input$input, num = input$numwords)
-      output$text_buttons <- renderUI({
-          buttons <- as.list(1:input$numwords)
-          buttons <- lapply(buttons, function(x) {
-              name <- paste0("Button ", x)
-              # creates an observer only if it doesn't already exists
-              if (is.null(obsList[[name]])) {
-                  # make sure to use <<- to update global variable obsList
-                  obsList[[name]] <<- observeEvent(input[[name]], {
-                      cat("Button ", x, "\n")
-                      newinput <- paste0(input$input, " ", words[x])
-                      output$user_input <- renderUI(paste0(newinput, " . . ."))
-                      words <- ngram_predict(newinput, num = input$numwords)
-                      output$model_output <- renderUI(tags$div(tags$ul(
-                          lapply(1:length(words), function(x) tags$li(renderText(words[x])))
-                      )))
-                  })
-              }
-              splitLayout(
-                actionButton(name,words[x])
-              )
-          })
-      })
-  })
- 
 })
